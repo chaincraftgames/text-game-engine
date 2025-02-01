@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "outDir": "../dist/rps",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "composite": true,
+    "paths": {
+      "@chaincraft/text-game-engine/*": ["../../dist/*"]
+    },
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../../" }
+  ]
+}

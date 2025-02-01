@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "allowJs": true,
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "composite": true,
+    "declaration": true,
+    "paths": {
+      "#core/*": ["src/core/*"],
+      "#modules/*": ["modules/dist/*"],
+      "#interfaces/*": ["src/interfaces/*"],
+      "bitecs": ["node_modules/bitecs"],
+      "bitecs/core": ["node_modules/bitecs/core/index.d.ts"],
+      "bitecs/core/*": ["node_modules/bitecs/core/*"]
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types",
+      "./node_modules/bitecs/core"
+    ]
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "modules",
+    "src/interfaces/discord",
+    "src/interfaces/telegram"
+  ]
+}
