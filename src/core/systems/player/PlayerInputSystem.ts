@@ -27,10 +27,14 @@ export const createPlayerInputSystem = <T extends World<WorldContext>>(world: T,
         console.debug('[PlayerInputSystem] - execute.');
         // Get all active players
         const activePlayers = query(world, [world.components.PlayerState])
-            .filter(playerId => getActive(world, playerId));
+        // TODO: Properly handle active players.  probably need an add/remove observer
+        //       and Active becomes a component that can be added/removed.  When
+        //       the observer fires, we add/remove the player from the active list.
+        //       we'll have to change the code to rerace any new active players.
+            // .filter(playerId => getActive(world, playerId));
         
         // Wait for any player to have input
-       const result = await Promise.race(activePlayers.map(async playerId => {
+        const result = await Promise.race(activePlayers.map(async playerId => {
             const playerName = getPlayerName(world, playerId);
             console.debug(`[PlayerInputSystem] Waiting for input from player ${playerName}`);
             if (!playerName) return;

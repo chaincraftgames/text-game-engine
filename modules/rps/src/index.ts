@@ -1,13 +1,12 @@
-import { World, WorldContext, addComponent, createWorld, query, getComponent, removeComponent } from '@chaincraft/text-game-engine/core/engine.js';
+import { World, WorldContext, addComponent, createWorld, getComponent, getGameState } from '@chaincraft/text-game-engine/core/engine.js';
 import { addPlayerEntity, registerPlayerComponents } from '@chaincraft/text-game-engine/core/entities/Player.js';
 import { addGamepieceEntity, registerGamepieceComponents } from '@chaincraft/text-game-engine/core/entities/Gamepiece.js';
 import { addGamepieceToInventory, createInventory, defineInventoryType, getGamepiecesInInventory } from '@chaincraft/text-game-engine/core/components/Inventory.js';
-import { createGameEntity, getGameWorld, registerGameComponents } from '@chaincraft/text-game-engine/core/entities/Game.js';
+import { createGameEntity, getGameWorld } from '@chaincraft/text-game-engine/core/entities/Game.js';
 import { EntityType, setMaxEntityCount } from '@chaincraft/text-game-engine/core/EntitySizingConfig.js';
 import { setActive } from '@chaincraft/text-game-engine/core/components/player/PlayerState.js';
 import { addPlayerMessage, registerPlayerMessage } from '@chaincraft/text-game-engine/core/components/player/PlayerMessage.js';
-import { getGameState, setGameState } from '@chaincraft/text-game-engine/core/components/game/GameState.js';
-import { createGameStateSystem } from '@chaincraft/text-game-engine/core/systems/state/GameStateSystem.js';
+import { createGameStateSystem, GAME_STATE_END, GAME_STATE_INIT } from '@chaincraft/text-game-engine/core/systems/state/GameStateSystem.js';
 import { createPlayerMessagingSystem } from '@chaincraft/text-game-engine/core/systems/player/PlayerMessagingSystem.js';
 import { IEngine } from '@chaincraft/text-game-engine/core/IModule.js';
 import { createPlayerInputSystem } from '@chaincraft/text-game-engine/core/systems/player/PlayerInputSystem.js';
@@ -23,7 +22,6 @@ import { getGamepieceOwner } from '@chaincraft/text-game-engine/core/components/
 import { createReactiveSystem, createSystem, execute, GameSystemsConfig, ReactiveSystemTrigger, SystemExecutionType } from '@chaincraft/text-game-engine/core/systems/orchestration.js';
 import { Extends } from '@chaincraft/text-game-engine/core/extension.js';
 import { getTrumpResults, registerTrumpResults } from '@chaincraft/text-game-engine/core/mechanics/trump/components/TrumpResults.js';
-import { create } from 'domain';
 
 // Constants
 export const maxPlayers: number = 2;
@@ -89,21 +87,8 @@ const RPSType = {
 /** Game states */
 const RPSGameState = {
     /** Game is in progress */
-    INIT: 1,
-    ROUND_1: 2,
-    ROUND_2: 3,
-    ROUND_3: 4,
-    END: 5
+    PLAYING: 2
 };
-
-const RPSGameStateNames = [
-    "None",
-    "Init",
-    "Round 1",
-    "Round 2",
-    "Round 3",
-    "End"
-]
 
 /** Inventories */
 enum InventoryType {
@@ -114,42 +99,41 @@ enum InventoryType {
 interface RPSWorldContext extends WorldContext {
     playerIds: number[];
     playedGamepieces: number[];
+    round: number;
 }
 
 type RPSWorld = World<RPSWorldContext>;
 
 const createSystems = (world: RPSWorld) => {
-    // Create all systems
-    createGameStateSystem(world, {
-        initialState: RPSGameState.INIT,
-        currentState: RPSGameState.INIT,
-        transitions: [
+    createGameStateSystem(
+        world,
+        [
             {
-                from: RPSGameState.INIT,
-                to: RPSGameState.ROUND_1,
-                condition: () => true,
-                onTransition: (world: RPSWorld) => startRound(world)
+                from: GAME_STATE_INIT, to: RPSGameState.PLAYING,
+                when: (world: RPSWorld) => world.round < numberOfRounds,
+                execute: (world: RPSWorld) => {
+                    console.debug('[RPS] repeat execute');
+                    startRound(world, ++world.round);
+                },
+                repeat: { times: numberOfRounds - 1 },
+                transitions: [
+                    {
+                        from: RPSGameState.PLAYING,
+                        to: RPSGameState.PLAYING,
+                        when: (world: RPSWorld) => scoreIsComplete(world, getGameState(world)),
+                        execute: (world: RPSWorld) => { 
+                            startRound(world as RPSWorld, ++world.round);
+                        }
+                    },
+                ],
             },
             {
-                from: RPSGameState.ROUND_1,
-                to: RPSGameState.ROUND_2,
-                condition: (world: RPSWorld) => scoreIsComplete(world, RPSGameState.ROUND_1),
-                onTransition: (world: RPSWorld) => startRound(world)
-            },
-            {
-                from: RPSGameState.ROUND_2,
-                to: RPSGameState.ROUND_3,
-                condition: (world: RPSWorld) => scoreIsComplete(world, RPSGameState.ROUND_2),
-                onTransition: (world: RPSWorld) => startRound(world)
-            },
-            {
-                from: RPSGameState.ROUND_3,
-                to: RPSGameState.END,
-                condition: (world: RPSWorld) => scoreIsComplete(world, RPSGameState.ROUND_3),
-                onTransition: (world: RPSWorld) => determineWinnerAndExit(world)
+                from: RPSGameState.PLAYING, to: GAME_STATE_END,
+                when: (world) => scoreIsComplete(world as RPSWorld, getGameState(world)),
+                execute: determineWinnerAndExit
             }
         ]
-    });
+    );
 
     createPlayerMessagingSystem(world, playerMessages);
 
@@ -272,9 +256,6 @@ export const initializeGame = (gameId: number, players: string[], engine: IEngin
     for (let i = 0; i < players.length; i++) {
         createPlayer(world, players[i], playerRoleId);
     }
-
-    // Set initial game state
-    setGameState(world, RPSGameState.INIT);
 };
 
 export const startGame = (gameId: number) => {
@@ -300,7 +281,7 @@ export const startGame = (gameId: number) => {
         managedSystems: {
             description: 'RPS Game Loop',
             type: SystemExecutionType.SEQUENTIAL,
-            precondition: (world: RPSWorld) => getGameState(world) !== RPSGameState.END,
+            precondition: (world: RPSWorld) => getGameState(world) !== GAME_STATE_END,
             systems: [
                 createSystem('Game State', world.systems.GameState),
                 createSystem('Player Input', world.systems.PlayerInput),
@@ -339,7 +320,7 @@ export const startGame = (gameId: number) => {
             ]
         }
     };
-    execute(world, RPSSystemConfig, (world: RPSWorld) => getGameState(world) === RPSGameState.END);
+    execute(world, RPSSystemConfig, (world: RPSWorld) => getGameState(world) === GAME_STATE_END);
 }
 
 export const getGeneralInstructions = () => {
@@ -349,7 +330,8 @@ export const getGeneralInstructions = () => {
 const createWorldContext = (): Partial<RPSWorldContext> => {
     return {
         playerIds: [],
-        playedGamepieces: []
+        playedGamepieces: [],
+        round: 0
     };
 }
 
@@ -379,7 +361,6 @@ const createGamepiece = (world: RPSWorld, owner: number, rpsValue: number) => {
 
 const registerCoreComponents = (world: RPSWorld) => {
     // Register core components for entities
-    registerGameComponents(world);
     registerPlayerComponents(world);
     registerGamepieceComponents(world);
 
@@ -425,14 +406,13 @@ const registerRPSComponents = (world: RPSWorld) => {
     )
 }
 
-const startRound = async (world: RPSWorld) => {
-    const state = getGameState(world);
-    console.debug('[RPS] Starting %s', RPSGameStateNames[state]);  
+const startRound = async (world: RPSWorld, roundNumber: number) => {
+    console.debug('[RPS] Starting Round %d', roundNumber);  
     
     // Make players active and prompt them for their choice
     for (const player of world.playerIds) {
         setActive(world, player);
-        addPlayerMessage(world, player, state + 12);
+        addPlayerMessage(world, player, roundNumber + 13);
         addPlayerMessage(world, player, PlayerMessage.CHOOSE_RPS);
     }
 }

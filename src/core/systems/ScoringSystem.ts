@@ -1,6 +1,5 @@
-import { World, WorldContext, query } from '#core/engine.js';
+import { World, WorldContext, getGameState, query } from '#core/engine.js';
 import { updatePlayerScore } from '#core/components/player/PlayerScore.js';
-import { getGameState } from '#core/components/game/GameState.js';
 
 export type ScoringRule = {
   evaluate: (world: World<WorldContext>) => Map<number, number>;

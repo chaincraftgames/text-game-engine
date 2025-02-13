@@ -48,6 +48,8 @@ type PendingCallback = {
     args: any[];
 }
 
+export type GameStateChangeCallback = (newState: number, prevState: number) => void;
+
 export interface WorldContext {
     components: Record<string, any>;
     systems: Record<string, any>;  // Add systems storage
@@ -63,6 +65,20 @@ export interface WorldContext {
     /** Callbacks to be executed after the next call to addComponent completes. */
     pendingAddCallbacks: PendingCallback[];
     executingAddCallbacks: boolean;
+
+    gameState: number;
+    gameStateObservers: Set<GameStateChangeCallback>;
+
+    completionTracking: {
+        [ref: string]: {
+            type: 'fixed';
+            current: number;
+            target: number;
+        } | {
+            type: 'variable';
+            completed: boolean;
+        }
+    };
 }
 
 export const createWorld = <T extends WorldContext>(context = {}):
@@ -76,10 +92,29 @@ export const createWorld = <T extends WorldContext>(context = {}):
         outputQueues: new Map(),
         endGame: () => {},
         pendingAddCallbacks: [],
-        executingAddCallbacks: false
+        executingAddCallbacks: false,
+        gameState: 0,
+        gameStateObservers: new Set(),
+        completionTracking: {}
     };
     return beCreateWorld({ ...defaultContext, ...context } as T);
 }
+
+export const updateCompletion = (world: World<WorldContext>, ref: string): void => {
+    const completion = world.completionTracking[ref];
+    if (completion.type === 'fixed') {
+        completion.current++;
+    } else {
+        completion.completed = true;
+    }
+}
+
+export const isCompleted = (world: World<WorldContext>, ref: string): boolean => {
+    const completion = world.completionTracking[ref];
+    return completion.type === 'fixed' 
+        ? completion.current >= completion.target
+        : completion.completed;
+};
 
 /** World */
 export const resetWorld = (world: World):World => beResetWorld(world);
@@ -197,3 +232,27 @@ const executePendingAddCallbacks = (world: World<WorldContext>) => {
         world.executingAddCallbacks = false;
     }
 };
+
+export const setGameState = (world: World<WorldContext>, newState: number): void => {
+    const prevState = world.gameState;
+    world.gameState = newState;
+    world.gameStateObservers.forEach(observer => observer(newState, prevState));
+};
+
+export const getGameState = (world: World<WorldContext>): number => {
+    return world.gameState;
+};
+
+export const observeGameState = (
+    world: World<WorldContext>, 
+    callback: GameStateChangeCallback
+): () => void => {
+    world.gameStateObservers.add(callback);
+    return () => {
+        world.gameStateObservers.delete(callback);
+    };
+};
+
+export const getStateGeneration = (stateId: number): number => stateId % 100;
+export const getBaseState = (stateId: number): number => Math.floor(stateId / 100);
+

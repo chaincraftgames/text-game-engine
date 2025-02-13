@@ -1,6 +1,5 @@
 import { World, WorldContext } from "#core/engine.js";
 import { getMaxEntityCount } from "#core/EntitySizingConfig.js";
-import { get } from "http";
 
 const enum ActiveValues {
     INACTIVE = 0,

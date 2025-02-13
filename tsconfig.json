@@ -27,7 +27,8 @@
       "./node_modules/@types",
       "./src/types",
       "./node_modules/bitecs/core"
-    ]
+    ],
+    "types": ["jest", "node"], // Empty array to prevent automatic type inclusion
   },
   "include": ["src/**/*"],
   "exclude": [
