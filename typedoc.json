@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/core/**/*.ts"],
+  "exclude": [
+    "**/__mocks__/**",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/GameEngine.ts",
+    "**/messaging/**",
+  ],
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "docs/api",
+  "readme": "none",
+  "name": "ChainCraft Text Game Engine API",
+  "hideGenerator": true,
+  "hideBreadcrumbs": true,
+  "theme": "markdown",
+  "flattenOutputFiles": true
+}

@@ -32,7 +32,8 @@
     "watch-cli-server": "tsc-watch --onSuccess 'npm run start-cli-server'",
     "cli": "npm run build && node dist/interfaces/cli/cli-client.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "docs": "typedoc && node scripts/combine-docs.js"
   },
   "keywords": [],
   "author": "",
@@ -49,6 +50,8 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.1",
     "tsconfig-paths": "^4.2.0",
+    "typedoc": "^0.27.7",
+    "typedoc-plugin-markdown": "^4.4.2",
     "typescript": "^5.7.2",
     "ws": "^8.18.0"
   },
