@@ -30,7 +30,7 @@ import type {
     ObservableHook
 } from 'bitecs/core';
 
-import { IMessageQueue } from '#core/messaging/MessageQueues.js';
+import { IMessageQueue, PlayerInputQueue, PlayerMessageQueue } from '#core/messaging/MessageQueues.js';
 
 export type { 
     World, 
@@ -55,8 +55,8 @@ export interface WorldContext {
     systems: Record<string, any>;  // Add systems storage
     actionHandlers: Map<string, (world: World<WorldContext>, entity: number, action: Component) => void>;
     gameId: number;
-    inputQueues: Map<string, IMessageQueue<string>>;
-    outputQueues: Map<string, IMessageQueue<string>>;
+    inputQueue: PlayerInputQueue | undefined;
+    outputQueue: PlayerMessageQueue | undefined;
 
     /** Callback to be executed when the game ends */
     endGame: (gameId: number) => void;
@@ -88,8 +88,8 @@ export const createWorld = <T extends WorldContext>(context = {}):
         components: {},
         systems: {},  // Initialize systems storage
         actionHandlers: new Map(),
-        inputQueues: new Map(),
-        outputQueues: new Map(),
+        inputQueue: undefined,
+        outputQueue: undefined,
         endGame: () => {},
         pendingAddCallbacks: [],
         executingAddCallbacks: false,

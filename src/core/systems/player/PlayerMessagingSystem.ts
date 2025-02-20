@@ -18,7 +18,7 @@ export const createPlayerMessagingSystem = (world: World<WorldContext>, messages
                 return;
             }
             
-            const queue = world.outputQueues.get(playerName);
+            const queue = world.outputQueue
             if (!queue) {
                 console.error('[PlayerMessagingSystem] Queue not found for player:', playerName);
                 return;
@@ -26,7 +26,10 @@ export const createPlayerMessagingSystem = (world: World<WorldContext>, messages
 
             console.debug('[PlayerMessagingSystem] Queueing message to player:', playerName, messageId);
 
-            queue.enqueue(messages[messageId]);
+            queue.enqueue({
+                playerId: playerName,
+                message: messages[messageId]
+            });
     
             removeComponent(world, player, world.components.PlayerMessage);
         };

@@ -16,6 +16,8 @@ export interface Message {
 
 export interface CreateGameMessage extends Message {
   type: MessageType.CreateGame;
+  moduleName: string;
+  simulateUsingAI: boolean;
   playerId: string;
 }
 

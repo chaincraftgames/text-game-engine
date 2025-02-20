@@ -34,33 +34,17 @@ export const createPlayerInputSystem = <T extends World<WorldContext>>(world: T,
             // .filter(playerId => getActive(world, playerId));
         
         // Wait for any player to have input
-        const result = await Promise.race(activePlayers.map(async playerId => {
-            const playerName = getPlayerName(world, playerId);
-            console.debug(`[PlayerInputSystem] Waiting for input from player ${playerName}`);
-            if (!playerName) return;
-            
-            const queue = world.inputQueues.get(playerName);
-            if (!queue) return;
+        await world.inputQueue?.waitForAvailableMessage();
+        const playerInput = world.inputQueue?.dequeue();
+        if (playerInput) {
+            const { playerId: playerName, input } = playerInput;
+            console.debug(`[PlayerInputSystem] Received input from player ${playerName}: ${input}`);
 
-            await queue.waitForAvailableMessage();
-            console.debug(`[PlayerInputSystem] Player ${playerName} has input`);
-            return playerName;
-        }));
-        
-        console.debug('[PlayerInputSystem] Received input from player %s', result);
-
-        // Process any remaining inputs   
-        for (const playerId of activePlayers) {
-            const playerName = getPlayerName(world, playerId);
-            if (!playerName) continue;
-            
-            const queue = world.inputQueues.get(playerName);
-            if (!queue) continue;
-
-            const input = queue.dequeue();
-            if (!input) continue;
-
-            console.debug(`[PlayerInputSystem] Processing input from player ${playerName}: ${input}`);
+            // Get the player id and make sure the player is active
+            const playerId = activePlayers.find(
+                playerId => getPlayerName(world, playerId) === playerName);
+            // TODO: Implement better handling of a player that is not active.  This discards their action.
+            if (!playerId) return;
             processInput(world, playerId, input.trim());
         }
     };

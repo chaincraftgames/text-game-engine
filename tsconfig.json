@@ -16,6 +16,7 @@
     "composite": true,
     "declaration": true,
     "paths": {
+      "#ai-sim/*": ["src/ai-sim/*"],
       "#core/*": ["src/core/*"],
       "#modules/*": ["modules/dist/*"],
       "#interfaces/*": ["src/interfaces/*"],

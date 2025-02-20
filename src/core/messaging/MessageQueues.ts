@@ -1,51 +1,85 @@
-export interface IMessageQueue<T> {
-    /** Enqueues the message. */
-    enqueue(message: T): void;
-    
-    /** Returns the next message in the queue or null if no message is available. */
-    dequeue(): T | null;
+type Message = PlayerInput | PlayerMessage;
 
-    /** 
-     * Returns a promise that resolves when a message is available in the
-     * queue, without removing the message.
-     */
-    waitForAvailableMessage(): Promise<void>;
-
-    clear(): void;
+export interface PlayerInput {
+  playerId: string;
+  input: string;
 }
 
-export class MessageQueue<T> implements IMessageQueue<T> {
-    private queue: T[] = [];
-    private resolvers: (() => void)[] = [];
+export interface PlayerMessage {
+  playerId: string;
+  message: string;
+}
 
-    enqueue(message: T): void {
-        console.debug('[MessageQueue] Enqueue: %s', message);
-        this.queue.push(message);
-        
-        // Notify all waiters
-        if (this.resolvers.length > 0) console.debug('[MessageQueue] Message arrived, resolving promise');
-        this.resolvers.forEach(resolve => resolve());
-        this.resolvers.length = 0;
+export type PlayerInputQueue = IMessageQueue<PlayerInput>;
+export type PlayerMessageQueue = IMessageQueue<PlayerMessage>;
+
+export const createPlayerInputQueue = (): PlayerInputQueue =>
+  new MessageQueue<PlayerInput>();
+export const createPlayerMessageQueue = (): PlayerMessageQueue =>
+  new MessageQueue<PlayerMessage>();
+
+/** 
+ * A queue for messages that supports waiting for messages to arrive.  This
+ * should only be used by a single consumer.
+ */
+export interface IMessageQueue<T extends Message> {
+  /**
+   * Adds the message to the queue. Thread-safe for multiple producers.
+   */
+  enqueue(message: T): void;
+
+  /**
+   * Returns a promise that resolves when a message is available.
+   * NOT thread-safe - only one consumer should use this method.
+   */
+  waitForAvailableMessage(): Promise<void>;
+
+  /**
+   * Gets the next message in the queue. Returns undefined if empty.
+   * NOT thread-safe - only one consumer should use this method.
+   */
+  dequeue(): T | undefined;
+
+  clear(): void;
+}
+
+export class MessageQueue<T extends Message> implements IMessageQueue<T> {
+  private queue: T[] = [];
+  private messageAvailablePromise: Promise<void> | null = null;
+  private messageAvailableResolver: (() => void) | null = null;
+
+  enqueue(message: T): void {
+    console.debug("[MessageQueue] Enqueue: %s", message);
+    this.queue.push(message);
+    console.debug("[MessageQueue] Message queue after enqueue: %o", this.queue);
+
+    // Notify all waiters and clear the promise
+    this.messageAvailableResolver?.();
+    this.messageAvailableResolver = null;
+    this.messageAvailablePromise = null;
+  }
+
+  async waitForAvailableMessage(): Promise<void> {
+    if (this.queue.length > 0) {
+      return;
     }
 
-    dequeue(): T | null {
-        if (this.queue.length > 0) console.debug('[MessageQueue] Dequeueing message %s', this.queue[0]);
-        return this.queue.shift() ?? null;
+    // Create promise first to ensure we don't miss any messages
+    if (!this.messageAvailablePromise) {
+      this.messageAvailablePromise = new Promise<void>((resolve) => {
+        this.messageAvailableResolver = resolve;
+      });
     }
 
-    async waitForAvailableMessage(): Promise<void> {
-        if (this.queue.length > 0) {
-            console.debug('[MessageQueue] Message was already available');
-            return Promise.resolve();
-        }
-        
-        return new Promise<void>(resolve => {
-            console.debug('[MessageQueue] Waiting for message to arrive');
-            this.resolvers.push(resolve);
-        });
-    }
+    console.debug("[MessageQueue] Waiting for message to arrive");
+    return this.messageAvailablePromise;
+  }
 
-    clear(): void {
-        this.queue.length = 0;
-    }
+  dequeue(): T | undefined {
+      return this.queue.shift();
+  }
+
+  clear(): void {
+    this.queue.length = 0;
+  }
 }

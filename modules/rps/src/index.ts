@@ -24,7 +24,9 @@ import { Extends } from '@chaincraft/text-game-engine/core/extension.js';
 import { getTrumpResults, registerTrumpResults } from '@chaincraft/text-game-engine/core/mechanics/trump/components/TrumpResults.js';
 
 // Constants
-export const maxPlayers: number = 2;
+export const maxPlayers = 2;
+
+export const name = 'Rock, Paper, Scissors';
 
 /** How many rounds in a game. */
 const numberOfRounds = 3;
@@ -218,7 +220,7 @@ const createSystems = (world: RPSWorld) => {
     createActionSystem(world);
 };
 
-export const createGame = (): number => {
+export const createGame = async (): Promise<number> => {
     // Configure entity counts
     setMaxEntityCount(EntityType.PLAYER, maxPlayers);
     setMaxEntityCount(EntityType.GAMEPIECE, Object.keys(RPSType).length * maxPlayers);
@@ -242,8 +244,8 @@ export const initializeGame = (gameId: number, players: string[], engine: IEngin
     const world = getGameWorld(gameId) as RPSWorld;
     
     // Set the message queues on the world
-    world.inputQueues = engine.inputQueues;
-    world.outputQueues = engine.outputQueues;
+    world.inputQueue = engine.inputQueue;
+    world.outputQueue = engine.outputQueue;
     world.endGame = engine.endGame;
 
     defineInventoryType(world, InventoryType.PLAYER_HAND, [rpsGamepieceTypeId]);

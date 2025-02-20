@@ -10,13 +10,18 @@ import {
   PlayerMessage, 
   PlayerActionMessage
 } from './cli-messages.js';
-import { GameMessageQueueManager } from '../../core/messaging/GameMessageQueues.js';
+import { getAiGameDescription } from '#ai-sim/aiGameRegistry.js';
+import { get } from 'http';
+import { createPlayerInputQueue, createPlayerMessageQueue, MessageQueue, PlayerInputQueue, PlayerMessageQueue } from '#core/messaging/MessageQueues.js';
 
 const wss = new WebSocketServer({ port: 8080 });
 
 const clients = new Map<string, WS>();
 const gamePlayers = new Map<number, Set<string>>();
-const queueManager = new GameMessageQueueManager();
+const gameQueues = new Map<number, { 
+  inputQueue: PlayerInputQueue,
+  outputQueue: PlayerMessageQueue
+}>();
 
 wss.on('connection', (ws: WS) => {
   ws.on('message', async (message) => {
@@ -29,30 +34,38 @@ wss.on('connection', (ws: WS) => {
 
     switch (parsedMessage.type) {
       case MessageType.CreateGame: {
-        const gameId = await createGame('rps', parsedMessage.playerId);
-        const gameCreatedMessage: GameCreatedMessage = { 
-          type: MessageType.GameCreated, gameId
-        };
-        ws.send(JSON.stringify(gameCreatedMessage));
-        listenForMessages(gameId, playerId, ws);
+        const { moduleName, simulateUsingAI, playerId } = parsedMessage;
+        try {
+          const gameId = await createGame(moduleName, playerId, simulateUsingAI);
+          const gameCreatedMessage: GameCreatedMessage = { 
+            type: MessageType.GameCreated, gameId
+          };
+          ws.send(JSON.stringify(gameCreatedMessage));
+          listenForMessages(gameId);
+        } catch (error) {
+          console.error('Error creating game:', error);
+          ws.close();
+        }
         break;
       }
       case MessageType.JoinGame: {
         const gameId = parsedMessage.gameId;
-        const players = joinGame(gameId, playerId);
+        const players = await joinGame(gameId, playerId);
         const gameJoinedMessage: GameJoinedMessage = { 
           type: MessageType.GameJoined, 
           gameId: parsedMessage.gameId, 
           players 
         };
         ws.send(JSON.stringify(gameJoinedMessage));
-        listenForMessages(gameId, playerId, ws);
         break;
       }
       case MessageType.PlayerAction: {
         console.debug('[CLI Server] Received player %s action: %s', parsedMessage.playerId, parsedMessage.action);
-        const gameQueues = queueManager.getGameQueues(parsedMessage.gameId);
-        gameQueues?.inputQueues.get(parsedMessage.playerId)?.enqueue(parsedMessage.action);
+        const queues = gameQueues.get(parsedMessage.gameId);
+        queues?.inputQueue.enqueue({
+        playerId: parsedMessage.playerId,
+        input: parsedMessage.action
+      });
         break;
       }
       default:
@@ -71,24 +84,27 @@ wss.on('error', (error) => {
   process.exit(1);
 });
 
-async function listenForMessages(gameId: number, playerId: string, ws: WS) {
-  const gameQueues = queueManager.getGameQueues(gameId);
-  if (!gameQueues) return;
+async function listenForMessages(gameId: number) {
+  const queues = gameQueues.get(gameId);
+  if (!queues) return;
 
-  const queue = gameQueues.outputQueues.get(playerId);
+  const queue = queues.outputQueue;
   if (!queue) return;
 
   while (true) {
     try {
-      console.debug('[CLI Server] Waiting for message for player %s...', playerId);
+      console.debug('[CLI Server] Waiting for message for game %d...', gameId);
       await queue.waitForAvailableMessage();
-      const message = queue.dequeue();
-      if (!message) continue;
-      const playerMessage: PlayerMessage = {
+      const playerMessage = queue.dequeue();
+      if (!playerMessage) continue;
+      const { playerId, message } = playerMessage;
+      const ws = clients.get(playerId);
+      if (!ws) continue;
+      const messageToPlayer: PlayerMessage = {
         type: MessageType.PlayerMessage,
         message
       };
-      ws.send(JSON.stringify(playerMessage));
+      ws.send(JSON.stringify(messageToPlayer));
     } catch (error) {
       console.error('Error in message loop:', error);
       break;
@@ -96,10 +112,24 @@ async function listenForMessages(gameId: number, playerId: string, ws: WS) {
   }
 }
 
-async function createGame(moduleName: string, playerId: string): Promise<number> {
-  const gameQueues = queueManager.createGameQueues([playerId]);
-  const gameId = await gameEngine.createGame(moduleName, [playerId], gameQueues);
-  queueManager.registerGameQueues(gameId, gameQueues);
+async function createGame(moduleName: string, playerId: string, isAiModule: boolean): 
+    Promise<number> {
+  
+  let gameId: number;
+  const messageQueues = { 
+    inputQueue: createPlayerInputQueue(), 
+    outputQueue: createPlayerMessageQueue()
+  };
+  if (isAiModule) {
+    const gameDescription = getAiGameDescription(moduleName); 
+    if (!gameDescription) {
+      throw new Error(`AI game module not found: ${moduleName}`);
+    }
+    gameId = await gameEngine.createGameUsingAI(gameDescription, [playerId], messageQueues);
+  } else {
+    gameId = await gameEngine.createGameUsingModule(moduleName, [playerId], messageQueues);
+  }
+  gameQueues.set(gameId, messageQueues);
   gamePlayers.set(gameId, new Set([playerId]));
   registerGameEvents(gameId);
   return gameId;
@@ -107,7 +137,6 @@ async function createGame(moduleName: string, playerId: string): Promise<number>
 
 function joinGame(gameId: number, playerId: string) {
   const players = gameEngine.joinGame(gameId, playerId);
-  queueManager.addPlayerToGame(gameId, playerId);
   gamePlayers.get(gameId)?.add(playerId);
   return players;
 }

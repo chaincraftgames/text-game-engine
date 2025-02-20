@@ -1,0 +1,12 @@
+.DS_Store
+node_modules
+dist/*
+modules/dist/*
+*.tsbuildinfo
+docs/api/*
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example

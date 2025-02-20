@@ -2,12 +2,17 @@ import path from 'path';
 import fs from 'fs';
 
 import { IModule, IEngine } from '#core/IModule.js';
-import { GameMessageQueues } from './messaging/GameMessageQueues.js';
+import { createAiGameModule } from '#ai-sim/index.js';
+import { PlayerInputQueue, PlayerMessageQueue } from './messaging/MessageQueues.js';
 
 const loadedModules: Map<string, IModule> = new Map();
 
 const pendingGames: Map<number, { module: IModule, players: string[], engine: IEngine }> = new Map();
 const inProgressGames: Map<number, { module: IModule, players: string[], engine: IEngine }> = new Map();
+
+type EventCallback = (gameId: number, event: GameEvent, data?: any) => void;
+
+const eventSubscribers: Map<number, EventCallback[]> = new Map();
 
 export enum GameEvent {
   GameCreated = 'gameCreated',
@@ -17,12 +22,10 @@ export enum GameEvent {
   GameEnded = 'gameEnded',
   GameReady = "GameReady"
 }
-
-type EventCallback = (gameId: number, event: GameEvent, data?: any) => void;
-
-const eventSubscribers: Map<number, EventCallback[]> = new Map();
-
-export type PlayerPromptFunction = (gameId: string, playerId: string, prompt: string) => void;
+export interface GameMessageQueues {
+  inputQueue: PlayerInputQueue;
+  outputQueue: PlayerMessageQueue;
+}
 
 export async function loadModule(moduleName: string): Promise<any> {
     if (loadedModules.has(moduleName)) {
@@ -58,7 +61,7 @@ export async function loadModule(moduleName: string): Promise<any> {
  * a pending game and returns an id that can be used to join the game.  If it is greater
  * than the max player count, it returns an error message.
  */
-export async function createGame(
+export async function createGameUsingModule(
   moduleName: string, 
   players: string[], 
   messageQueues: GameMessageQueues
@@ -67,35 +70,17 @@ export async function createGame(
   if (!module) {
     throw new Error(`Module not found: ${moduleName}`);
   }
-  
-  const maxPlayers = module.maxPlayers;
-  if (players.length > maxPlayers) {
-    throw new Error(`Too many players (${players.length}) for game ${moduleName}.`);
-  }
-  
-  const gameId = module.createGame();
+  return await createGame(module, players, messageQueues);
+}
 
-  console.info(`Creating game ${gameId} with players: ${players.join(', ')}.`);
-  if (players.length === maxPlayers) {
-    module.initializeGame(gameId, players, {
-      inputQueues: messageQueues.inputQueues,
-      outputQueues: messageQueues.outputQueues
-    });
-    notifySubscribers(gameId, GameEvent.GameReady);
-  } else {
-    console.info(`Waiting for ${maxPlayers - players.length} more players to join game ${gameId}.`); 
-    pendingGames.set(gameId, { 
-      module, 
-      players, 
-      engine: {
-        inputQueues: messageQueues.inputQueues,
-        outputQueues: messageQueues.outputQueues,
-        endGame
-      }
-    });
-    notifySubscribers(gameId, GameEvent.GameCreated);
-  }
-  return gameId;
+export async function createGameUsingAI(
+  gameDescription: string,
+  players: string[],
+  messageQueues: GameMessageQueues,
+) {
+  const module = await createAiGameModule(gameDescription);
+
+  return await createGame(module, players, messageQueues);
 }
 
 /** 
@@ -109,13 +94,13 @@ export async function createGame(
  * @param playerName The name of the player joining the game.
  * @returns An array of strings that represent the players in the game.
  */
-export function joinGame(gameId: number, playerName: string): string[] {
+export async function joinGame(gameId: number, playerName: string): Promise<string[]> {
   if (pendingGames.has(gameId)) {
     const { module, players, engine } = pendingGames.get(gameId)!;
     players.push(playerName);
     notifySubscribers(gameId, GameEvent.PlayerJoined, { playerName });
     if (players.length === module.maxPlayers) {
-        module.initializeGame(gameId, players, engine);
+        await module.initializeGame(gameId, players, engine);
         inProgressGames.set(gameId, { module, players, engine });
         pendingGames.delete(gameId);
         notifySubscribers(gameId, GameEvent.GameReady);
@@ -149,18 +134,38 @@ export async function getGameInstructions(gameId: number): Promise<string> {
   }
 }
 
-export async function processPlayerAction(
-  gameId: number, 
-  playerId: string, 
-  action: string
-) {
-  const game = inProgressGames.get(gameId);
-  if (game) {
-    game.module.onPlayerAction(gameId, playerId, action);
-  } else {
-    throw new Error(`Game ${gameId} not found.`);
+async function createGame(
+  module: IModule,
+  players: string[], 
+  messageQueues: GameMessageQueues
+): Promise<number> {
+  const maxPlayers = module.maxPlayers;
+  if (players.length > maxPlayers) {
+    throw new Error(`Too many players (${players.length}) for game ${module.name}.`);
   }
-}
+  
+  const gameId = await module.createGame();
+
+  console.info(`Creating game ${gameId} with players: ${players.join(', ')}.`);
+  const engine: IEngine = {
+    inputQueue: messageQueues.inputQueue,
+    outputQueue: messageQueues.outputQueue,
+    endGame
+  };
+  if (players.length === maxPlayers) {
+    await module.initializeGame(gameId, players, engine);
+    notifySubscribers(gameId, GameEvent.GameReady);
+  } else {
+    console.info(`Waiting for ${maxPlayers - players.length} more players to join game ${gameId}.`); 
+    pendingGames.set(gameId, { 
+      module, 
+      players, 
+      engine
+    });
+    notifySubscribers(gameId, GameEvent.GameCreated);
+  }
+  return gameId;
+} 
 
 function notifySubscribers(gameId: number, event: GameEvent, data?: any): void {
   if (eventSubscribers.has(gameId)) {

@@ -1,10 +1,10 @@
-import { IMessageQueue } from '#core/messaging/MessageQueues.js';
+import { PlayerInputQueue, PlayerMessageQueue } from '#core/messaging/MessageQueues.js';
 
 export type InvalidActionError = Error;
 
 export interface IEngine {
-    inputQueues: Map<string, IMessageQueue<string>>;
-    outputQueues: Map<string, IMessageQueue<string>>;
+    inputQueue: PlayerInputQueue;
+    outputQueue: PlayerMessageQueue;
     endGame(gameId: number): void;
 }
 
@@ -13,10 +13,13 @@ export interface IModule {
     /** The maximum number of players that can play the game. */
     maxPlayers: number;
 
+    /** A short name for the game implemented by this module. */
+    name: string;
+
     /** 
      * Create the game world and return the gameId for the game.
      */
-    createGame(): number;
+    createGame(): Promise<number>;
 
     /** 
      * Initializes the game with the specified players.  This should setup the game world
@@ -25,7 +28,7 @@ export interface IModule {
      * @param players The players that will be playing the game.
      * @param engine The api for interacting with the game engine.
      */
-    initializeGame(gameId: number, players: string[], engine: IEngine): void;
+    initializeGame(gameId: number, players: string[], engine: IEngine): Promise<void>;
 
     /** 
      * Start the game.  This will be called after all players have joined the game and the 
@@ -43,14 +46,4 @@ export interface IModule {
      * what the player can do next.
      */
     getSpecificInstructions(gameId: number, playerId: string): string;
-
-    /** 
-     * Take an action in the game. 
-     * @param gameId The id of the game.
-     * @param playerId The id of the player making the move.
-     * @param action The action the player is taking.  This will be a string that the 
-     *               module will interpret based on the game rules.
-     * @throws An error if the action is invalid.
-     */
-    onPlayerAction(gameId: number, playerId: string, action: string): void;
 }
