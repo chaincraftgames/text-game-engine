@@ -63,11 +63,13 @@
     "langsmith": "^0.3.8",
     "module-alias": "^2.2.3",
     "node-fetch": "^3.3.2",
+    "pinata-web3": "^0.5.4",
     "uuid": "^11.0.3",
     "zod": "^3.24.2"
   },
   "imports": {
     "#ai-sim/*": "./dist/ai-sim/*",
-    "#core/*": "./dist/core/*"
+    "#core/*": "./dist/core/*",
+    "#utils/*": "./dist/utils/*"
   }
 }

@@ -8,6 +8,7 @@ import {
   GameJoinedMessage, 
   GameEventMessage,
   PlayerMessage,
+  CreateAiGameMessage,
 } from './cli-messages.js';
 
 let localPlayerId: string;
@@ -54,18 +55,24 @@ ws.on('open', () => {
   rl.question(colors.cyan('Enter your player ID: '), (playerId) => {
     localPlayerId = playerId;
     rl.question(colors.cyan('Would you like to (c)reate a game, create an (a)i game or (j)oin a game?'), (answer) => {
-      if (answer === 'c' || answer === 'a') {
+      if (answer === 'c') {
         rl.question(colors.cyan('Enter the module name: '), (moduleName) => {
           const createGameMessage: CreateGameMessage = { 
             type: MessageType.CreateGame, 
             moduleName,
-            simulateUsingAI: answer === 'a',
             playerId 
           };
           ws.send(JSON.stringify(createGameMessage));
-          if (answer === 'a') {
-            console.log(colors.yellow('AI is creating game.  Please wait...'));
-          }
+        });
+      } else if (answer === 'a') {
+        rl.question(colors.cyan('Enter the ipfs hash for the PAIT: '), (ipfsHash) => {
+          const createGameMessage: CreateAiGameMessage = { 
+            type: MessageType.CreateAiGame, 
+            ipfsHash,
+            playerId,
+          };
+          ws.send(JSON.stringify(createGameMessage));
+          console.log(colors.yellow('AI is creating game.  Please wait...'));
         });
       } else if (answer === 'j') {
         rl.question(colors.cyan('Enter the game ID: '), (gameId: string) => {

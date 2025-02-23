@@ -20,6 +20,7 @@
       "#core/*": ["src/core/*"],
       "#modules/*": ["modules/dist/*"],
       "#interfaces/*": ["src/interfaces/*"],
+      "#utils/*": ["src/utils/*"],
       "bitecs": ["node_modules/bitecs"],
       "bitecs/core": ["node_modules/bitecs/core/index.d.ts"],
       "bitecs/core/*": ["node_modules/bitecs/core/*"]

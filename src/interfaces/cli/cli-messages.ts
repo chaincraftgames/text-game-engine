@@ -1,5 +1,6 @@
 export enum MessageType {
   CreateGame = 'create',
+  CreateAiGame = 'createAi',
   JoinGame = 'join',
   GameCreated = 'gameCreated',
   GameJoined = 'gameJoined',
@@ -17,7 +18,12 @@ export interface Message {
 export interface CreateGameMessage extends Message {
   type: MessageType.CreateGame;
   moduleName: string;
-  simulateUsingAI: boolean;
+  playerId: string;
+}
+
+export interface CreateAiGameMessage extends Message {
+  type: MessageType.CreateAiGame;
+  ipfsHash: string;
   playerId: string;
 }
 
